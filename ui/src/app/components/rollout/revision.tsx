@@ -11,6 +11,7 @@ import {faChartBar, faChevronCircleDown, faChevronCircleUp, faUndoAlt} from '@fo
 import {Button, Tooltip} from 'antd';
 import moment = require('moment');
 import {InfoItemProps, InfoItemRow} from '../info-item/info-item';
+import {AnalysisRunDetails} from './analysisrun-details';
 
 function formatTimestamp(ts: string): string {
     const inputFormat = 'YYYY-MM-DD HH:mm:ss Z z';
@@ -58,6 +59,7 @@ export const RevisionWidget = (props: RevisionWidgetProps) => {
     const icon = collapsed ? faChevronCircleDown : faChevronCircleUp;
     const images = parseImages(revision.replicaSets);
     const hasPods = (revision.replicaSets || []).some((rs) => rs.pods?.length > 0);
+    console.log('RevisionWidget', revision);
     return (
         <div key={revision.number} className='revision'>
             <div className='revision__header'>
@@ -68,7 +70,8 @@ export const RevisionWidget = (props: RevisionWidgetProps) => {
                             onClick={() => props.rollback(Number(revision.number))}
                             type='default'
                             icon={<FontAwesomeIcon icon={faUndoAlt} style={{marginRight: '5px'}} />}
-                            style={{fontSize: '13px', marginRight: '10px'}}>
+                            style={{fontSize: '13px', marginRight: '10px'}}
+                        >
                             Rollback
                         </ConfirmButton>
                     )}
@@ -123,11 +126,13 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                                         {ar.status}
                                     </div>
                                 </React.Fragment>
-                            }>
+                            }
+                        >
                             <div
                                 className={`analysis__runs-action ${
                                     ar.status === 'Running' ? 'analysis--pending' : ar.status === 'Successful' ? 'analysis--success' : 'analysis--failure'
-                                }`}>
+                                }`}
+                            >
                                 <Button onClick={() => (selection?.objectMeta.name === ar.objectMeta.name ? setSelection(null) : setSelection(ar))}>
                                     {`Analysis ${temp[len - 2] + '-' + temp[len - 1]}`}
                                 </Button>
@@ -139,6 +144,7 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
 
             {selection && (
                 <React.Fragment key={selection.objectMeta?.name}>
+                    <AnalysisRunDetails analysisRun={selection} />
                     <div style={{marginTop: 5}}>
                         {selection.objectMeta?.name}
                         <i className={`fa ${selection.status === 'Successful' ? 'fa-check-circle analysis--success' : 'fa-times-circle analysis--failure'}`} />
@@ -201,7 +207,8 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                                                 )}
                                             </React.Fragment>
                                         );
-                                    })}>
+                                    })}
+                            >
                                 <i className='fa fa-info-circle analysis__run__jobs-info' />
                             </Tooltip>
                         </div>
@@ -264,7 +271,8 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                                                 )}
                                             </React.Fragment>
                                         );
-                                    })}>
+                                    })}
+                            >
                                 <i className='fa fa-info-circle analysis__run__jobs-info' />
                             </Tooltip>
                         </div>
