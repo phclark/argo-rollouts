@@ -58,9 +58,15 @@ type ExperimentViewController struct {
 	*viewController
 }
 
+type AnalysisRunViewController struct {
+	*viewController
+}
+
 type RolloutInfoCallback func(*rollout.RolloutInfo)
 
 type ExperimentInfoCallback func(*rollout.ExperimentInfo)
+
+type AnalysisRunInfoCallback func(*rollout.AnalysisRunInfo)
 
 func NewRolloutViewController(namespace string, name string, kubeClient kubernetes.Interface, rolloutClient rolloutclientset.Interface) *RolloutViewController {
 	vc := newViewController(namespace, name, kubeClient, rolloutClient)
@@ -86,6 +92,17 @@ func NewExperimentViewController(namespace string, name string, kubeClient kuber
 		return evc.GetExperimentInfo()
 	}
 	return &evc
+}
+
+func NewAnalysisRunViewController(namespace string, name string, kubeClient kubernetes.Interface, rolloutClient rolloutclientset.Interface) *AnalysisRunViewController {
+	vc := newViewController(namespace, name, kubeClient, rolloutClient)
+	arvc := AnalysisRunViewController{
+		viewController: vc,
+	}
+	vc.getObj = func() (interface{}, error) {
+		return arvc.GetAnalysisRunInfo()
+	}
+	return &arvc
 }
 
 func newViewController(namespace string, name string, kubeClient kubernetes.Interface, rolloutClient rolloutclientset.Interface) *viewController {
