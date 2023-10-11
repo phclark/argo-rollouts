@@ -1,17 +1,21 @@
 import * as React from 'react';
-import {RolloutAnalysisRunInfo, RolloutExperimentInfo, RolloutReplicaSetInfo} from '../../../models/rollout/generated';
+
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faChevronCircleDown, faChevronCircleUp, faUndoAlt} from '@fortawesome/free-solid-svg-icons';
+import {Button, Tooltip} from 'antd';
+import { Card, Space, Descriptions } from 'antd';
 import {IconForTag} from '../../shared/utils/utils';
-import {PodWidget, ReplicaSets} from '../pods/pods';
+import {RolloutAnalysisRunInfo, RolloutExperimentInfo, RolloutReplicaSetInfo} from '../../../models/rollout/generated';
+import {ReplicaSets} from '../pods/pods';
 import {ImageInfo, parseImages} from './rollout';
+import {ConfirmButton} from '../confirm-button/confirm-button';
+import {InfoItemProps, InfoItemRow} from '../info-item/info-item';
+import {MetricResultChart, MetricResultTimeSeries, AnalysisPhase } from '../metricresult-chart/metricresult-chart';
+
 import './rollout.scss';
 import '../pods/pods.scss';
-import {ConfirmButton} from '../confirm-button/confirm-button';
-import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faChartBar, faChevronCircleDown, faChevronCircleUp, faUndoAlt} from '@fortawesome/free-solid-svg-icons';
-import {Button, Tooltip} from 'antd';
+
 import moment = require('moment');
-import {InfoItemProps, InfoItemRow} from '../info-item/info-item';
-import {AnalysisRunDetails} from './analysisrun-details';
 
 function formatTimestamp(ts: string): string {
     const inputFormat = 'YYYY-MM-DD HH:mm:ss Z z';
@@ -59,7 +63,6 @@ export const RevisionWidget = (props: RevisionWidgetProps) => {
     const icon = collapsed ? faChevronCircleDown : faChevronCircleUp;
     const images = parseImages(revision.replicaSets);
     const hasPods = (revision.replicaSets || []).some((rs) => rs.pods?.length > 0);
-    console.log('RevisionWidget', revision);
     return (
         <div key={revision.number} className='revision'>
             <div className='revision__header'>
@@ -100,22 +103,44 @@ export const RevisionWidget = (props: RevisionWidgetProps) => {
 
 const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
     const {analysisRuns} = props;
-    const [selection, setSelection] = React.useState<RolloutAnalysisRunInfo>(null);
+    const [selection, setSelection] = React.useState<RolloutAnalysisRunInfo | null>(null);
+    const chartData: MetricResultTimeSeries[] = [];
+
+    if (selection?.nonJobInfo) {
+        for (const result of selection.nonJobInfo) {
+            let series = chartData.find((series) => series.name === result.metricName);
+            
+            let dataPoint = {
+                timestamp: new Date(result.startedAt as string).getTime(),
+                value: Number(result.value),
+                status: AnalysisPhase[result.status as keyof typeof AnalysisPhase],
+            };
+            if (!series) {
+                series = {
+                    name: result.metricName as string,
+                    data: [dataPoint],
+                };
+                chartData.push(series);
+            } else {
+                series.data.push(dataPoint);
+            }
+        }
+    }
 
     return (
         <div className='analysis'>
             <div className='analysis-header'>Analysis Runs</div>
             <div className='analysis__runs'>
                 {analysisRuns.map((ar) => {
-                    let temp = ar.objectMeta.name.split('-');
-                    let len = temp.length;
+                    let temp = ar.objectMeta?.name?.split('-');
+                    let len = temp?.length;
                     return (
                         <Tooltip
                             key={ar.objectMeta?.name}
                             title={
                                 <React.Fragment>
                                     <div>
-                                        <b>Name:</b> {ar.objectMeta.name}
+                                        <b>Name:</b> {ar.objectMeta?.name}
                                     </div>
                                     <div>
                                         <b>Created at: </b>
@@ -133,7 +158,7 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                                     ar.status === 'Running' ? 'analysis--pending' : ar.status === 'Successful' ? 'analysis--success' : 'analysis--failure'
                                 }`}
                             >
-                                <Button onClick={() => (selection?.objectMeta.name === ar.objectMeta.name ? setSelection(null) : setSelection(ar))}>
+                                <Button onClick={() => (selection?.objectMeta?.name === ar.objectMeta?.name ? setSelection(null) : setSelection(ar))}>
                                     {`Analysis ${temp[len - 2] + '-' + temp[len - 1]}`}
                                 </Button>
                             </div>
@@ -141,8 +166,31 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                     );
                 })}
             </div>
-
-            {selection && (
+            {selection && selection.nonJobInfo && <MetricResultChart title={selection?.objectMeta?.name as string} series={chartData} />}
+            {selection?.metrics && (
+                <Space className='analysis__run__metrics__cards' key={selection.objectMeta?.name}>
+                    {selection.metrics.map((metric) => {
+                        return (
+                            <Card className='analysis__run__metrics__cards__metric' key={metric.name} title={metric.name} size="small">
+                                <Descriptions layout="vertical" column={{ md:2 }}>
+                                {Object.keys(metric).filter((key) => key !== 'name').map((key) => {
+                                    return (
+                                    <Descriptions.Item key={key} label={key} span={2}
+                                    labelStyle={{ fontSize:'12px' }} 
+                                    contentStyle={{ fontSize:'12px' }}>
+                                        {metric[key as keyof typeof metric]}
+                                    </Descriptions.Item>
+                                    );
+                                }
+                                )}
+                                </Descriptions>
+                            </Card>
+                        );
+                    })}
+                </Space>
+            )}
+            
+            {/* {selection && (
                 <React.Fragment key={selection.objectMeta?.name}>
                     <AnalysisRunDetails analysisRun={selection} />
                     <div style={{marginTop: 5}}>
@@ -171,6 +219,7 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                                     );
                                 })}
                             </div>
+                           
                             <Tooltip
                                 title={selection?.metrics
                                     .filter((metric) => metric.name === selection.jobs[0].metricName)
@@ -218,20 +267,22 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                             <div className='analysis__run__jobs-list'>
                                 {selection.nonJobInfo.map((nonJob) => {
                                     return (
-                                        <PodWidget
-                                            key={new Date(nonJob.startedAt.seconds).getTime()}
-                                            name={nonJob.value}
-                                            status={nonJob.status}
-                                            tooltip={
-                                                <div>
-                                                    <pre>Value: {JSON.stringify(JSON.parse(nonJob.value), null, 2)}</pre>
-                                                    <div>StartedAt: {formatTimestamp(JSON.stringify(nonJob.startedAt))}</div>
-                                                    <div>Status: {nonJob.status}</div>
-                                                    <div>MetricName: {nonJob.metricName}</div>
-                                                </div>
-                                            }
-                                            customIcon={faChartBar}
-                                        />
+                                        <React.Fragment key={new Date(nonJob.startedAt.seconds).getTime()}>
+                                            <PodWidget
+                                                key={new Date(nonJob.startedAt.seconds).getTime()}
+                                                name={nonJob.value}
+                                                status={nonJob.status}
+                                                tooltip={
+                                                    <div>
+                                                        <pre>Value: {JSON.stringify(JSON.parse(nonJob.value), null, 2)}</pre>
+                                                        <div>StartedAt: {formatTimestamp(JSON.stringify(nonJob.startedAt))}</div>
+                                                        <div>Status: {nonJob.status}</div>
+                                                        <div>MetricName: {nonJob.metricName}</div>
+                                                    </div>
+                                                }
+                                                customIcon={faChartBar}
+                                            />
+                                            </React.Fragment>
                                     );
                                 })}
                             </div>
@@ -278,7 +329,7 @@ const AnalysisRunWidget = (props: {analysisRuns: RolloutAnalysisRunInfo[]}) => {
                         </div>
                     )}
                 </React.Fragment>
-            )}
+            )} */}
         </div>
     );
 };
